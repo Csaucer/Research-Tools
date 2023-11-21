@@ -19,14 +19,14 @@ from PIL import Image
 #animating the plots in order to make data more viewable as a time series
 #modified from the code above to create animated GIFs
 images = []
-time_steps = 7
-image_dir = r'G:/My Drive/Core Flooding Project/PET_RAW_Finalized/pre_reaction/1C_Pre_3D/009ml_min_mayavi'
+time_steps = 21
+image_dir = r'G:/My Drive/Core Flooding Project/PET_RAW_Finalized/post_reaction/2C_Post_3D/009ml_min_mayavi'
 
 os.chdir(image_dir)
 #load all of the images into the images list
 # Loop through the directory and add PNG files to the list
 for filename in os.listdir(image_dir):
-    if filename.endswith('.png'):
+    if filename.startswith('C3'):
         images.append(os.path.join(image_dir, filename))
 
 # Create a GIF from the saved plot images
@@ -35,7 +35,7 @@ for image in images:
     frames.append(Image.open(image))
 
 # Save the frames as an animated GIF
-frames[0].save('output_animation.gif', format='GIF',
+frames[0].save('Contour3D.gif', format='GIF',
                append_images=frames[1:],
                save_all=True,
                duration=1000,  # Set the delay between frames (in milliseconds)
