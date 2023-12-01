@@ -21,7 +21,7 @@ import data_process
 
 # %% #decay correct the raw rad data
 #run the decay correction with the data_process module from Chris Zahasky
-filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\11MAY2023_mg1771782c_PET_rad.csv"
+filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\10May2023_mg1771781c_PET_rad.csv"
 s = data_process.sensors(filename, isotope = 'f18')
 #check the starting experiment times, plot them and establish the x values
 s.experiment_time_extraction(n=3, plot_check='yes')
@@ -41,7 +41,7 @@ plt.plot(x, s.SR3_dc)
 #set the number of experiments
 n=3
 #name the core and the before/after indicator
-ident = 'C2_pre'
+ident = 'C1_pre'
 #run a loop to extract the appropriate data
 for i in range(len(s.SR3_dc)):
     if i <= 2:
@@ -55,7 +55,7 @@ for i in range(len(s.SR3_dc)):
         #save the array as a .csv file
         fname = f'\\{ident}_exp{i+1}.csv'
         loc = os.getcwd()
-        np.savetxt(loc+fname, arr, delimiter=',')
+        #np.savetxt(loc+fname, arr, delimiter=',')
         #print(np.max(arr))
         
     else:
@@ -81,4 +81,35 @@ mass = np.trapz(y.iloc[:, 1])
 #plt.title('Timeseries plot of Rad BTC data')
 #plt.xlabel('Time in Seconds')
 #plt.ylabel('Radioconcentration [mCi/mL]')
+
+#%%
+#deal with the bubble issue in the data, working at the individual curve scale
+from scipy.interpolate import splrep, BSpline
+#import the data and plot it in its initial form with bubbles present
+#change the directory for the data
+directory = 'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Data'
+os.chdir(directory)
+file = 'C1_pre_exp3.csv'
+#import the data from the datafile and load it into an array
+data = np.loadtxt(file, delimiter=',', usecols=(0,1))
+tck = splrep(data[:,0], data[:,1], s=0)
+tck_s = splrep(data[:,0], data[:,1], s=11)
+
+
+fig, ax = plt.subplots(1,1)
+plt.plot(data[:,0], data[:,1])
+#plt.plot(data[:,0],BSpline(*tck)(data[:,0]))
+plt.plot(data[:,0],BSpline(*tck_s)(data[:,0]))
+plt.title('0.09 mL/min BTC')
+plt.xlabel('Time (seconds)')
+plt.ylabel('Radioconcentration (decay corrected)')
+
+# replace the data with the fitted data and export it as a new .csv
+new = BSpline(*tck_s)(data[:,0])
+np.min(new)
+b = np.column_stack((np.arange(len(new)),new, np.ones(len(new))))
+
+#check that this worked
+#save this as a csv file
+np.savetxt('C1_pre_exp3_fit.csv', b, delimiter=',')
 
