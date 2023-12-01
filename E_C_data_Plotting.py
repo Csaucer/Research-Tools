@@ -72,7 +72,7 @@ plt.ylabel('Conductivity (T corrected) [mS/cm]')
 plt.xlabel('Elapsed Days')
 plt.title('Bear Spring Conductivity, May to August 2023')
 # Other plot customizations...
-plt.savefig('May_to_August_Conductivity_Bear_Spring.png', dpi=800)
+#plt.savefig('May_to_August_Conductivity_Bear_Spring.png', dpi=800)
 plt.show()
 
 
