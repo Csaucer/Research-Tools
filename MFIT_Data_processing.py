@@ -89,15 +89,15 @@ from scipy.interpolate import splrep, BSpline
 #change the directory for the data
 directory = 'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Data'
 os.chdir(directory)
-file = 'C1_pre_exp3.csv'
+file = 'C2_pre_exp3.csv'
 #import the data from the datafile and load it into an array
 data = np.loadtxt(file, delimiter=',', usecols=(0,1))
 tck = splrep(data[:,0], data[:,1], s=0)
-tck_s = splrep(data[:,0], data[:,1], s=11)
+tck_s = splrep(data[:,0], data[:,1], s=130)
 
 
 fig, ax = plt.subplots(1,1)
-plt.plot(data[:,0], data[:,1])
+#plt.plot(data[:,0], data[:,1])
 #plt.plot(data[:,0],BSpline(*tck)(data[:,0]))
 plt.plot(data[:,0],BSpline(*tck_s)(data[:,0]))
 plt.title('0.09 mL/min BTC')
@@ -111,5 +111,141 @@ b = np.column_stack((np.arange(len(new)),new, np.ones(len(new))))
 
 #check that this worked
 #save this as a csv file
-np.savetxt('C1_pre_exp3_fit.csv', b, delimiter=',')
+np.savetxt('C2_pre_exp3_fit.csv', b, delimiter=',')
 
+# %%
+
+'''Attempting a different method of smoothing using a lowess smoothing filter'''
+
+import statsmodels.api as sm
+
+#import some example data
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_2C_Post_009ml.csv"
+a = np.loadtxt(file, delimiter=',')
+
+x = a[:,0]
+y = a[:,1]
+# Generate some random data
+#x = np.linspace(0, 10, 100)
+#y = np.sin(x) + np.random.normal(0, 0.1, 100)
+
+# Apply Lowess smoothing
+lowess = sm.nonparametric.lowess(y, x, frac=.001)
+
+# Plot the original data and the smoothed data
+plt.plot(x, y)
+plt.plot(lowess[:, 0], lowess[:, 1], c='r')
+y_smooth = lowess[:,1]
+export = np.hstack((x.reshape(-1, 1), y_smooth.reshape(-1, 1)))
+
+fname = 'RadBTC_2C_Post_009ml_smooth.csv'
+#np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
+
+
+# %%
+'''Attempting a different method of smoothing using a moving average filter'''
+'''This does not work as it shifts the peak of the data and lowers the max value,
+therefore the smoothing algoritm will have a substantial negative effect on the
+moment analysis and MFIT inversions'''
+import pandas as pd
+#import some example data
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_1C_Post_06ml.csv"
+data = pd.read_csv(file, header=None)
+data['moving_average'] = data.iloc[:,1].rolling(window=22).mean()
+
+plt.plot(data.iloc[:,0],data.iloc[:,2])
+plt.plot(data.iloc[:,0], data.iloc[:,1])
+
+#%%
+'''Hand smoothing is not an option, it is not a robust methodology and it isnt accurate'''
+'''Using a savgol_filter to smooth the data, exporting'''
+
+from scipy.signal import savgol_filter
+
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_1C_Pre_6ml.csv"
+a = np.loadtxt(file, delimiter=',')
+
+x = a[:,0]
+y = a[:,1]
+y_filtered = savgol_filter(y, window_length=2, polyorder=1)
+
+plt.plot(x, y, label='Noisy Data')
+plt.plot(x, y_filtered, label='Filtered Data')
+plt.legend()
+plt.show()
+
+residual = y-y_filtered
+RMSE = np.sqrt(np.mean((y_filtered-y)**2))
+
+export = np.hstack((x.reshape(-1, 1), y_filtered.reshape(-1, 1)))
+plt.plot(x,residual)
+plt.plot(x, RMSE)
+fname = 'RadBTC_1C_Pre_6ml_smooth.csv'
+#np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
+
+#%%
+'''This seems to be the best way to smooth the pre rxn, bubble impacted data without introducing
+any undue bias through a curve fitting algorithm'''
+
+
+from scipy.signal import medfilt
+# prepare data
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_2C_pre_009ml.csv"
+a = np.loadtxt(file, delimiter=',')
+
+
+x = a[:,0]
+y = a[:,1]
+
+
+y_s = medfilt(y, 575)
+fig1, ax1 = plt.subplots(dpi=400)
+plt.plot(x,y, label='raw')
+plt.plot(x,y_s, label='medfilt')
+plt.legend(loc='best')
+export = np.hstack((x.reshape(-1, 1), y_s.reshape(-1, 1)))
+
+fname = 'RadBTC_2C_Pre_009ml_smooth.csv'
+np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
+
+
+# %%
+'''Attempting to use gauss-newton fitting through Scipy. Yeah this is not going to work 
+because the gaussian doesnt fit the tail well. Basically this would be doing
+the same thing that MFIT does by fitting the ADE equation'''
+
+from scipy.optimize import curve_fit 
+
+#import the data
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_1C_Pre_06ml.csv"
+a = np.loadtxt(file, delimiter=',')
+
+x = a[:,0]
+y = a[:,1]
+
+def Gauss(x, A, B, C):
+    y = A * np.exp(-(x-B)**2/(2*C)**2)
+    return y
+
+fig1, ax1 = plt.subplots(dpi = 400)
+plt.plot(x, Gauss(x, .52, 318, 40), label='Original Guess')
+
+
+parameters, covariance = curve_fit(Gauss, x, y, p0=(.2, 318, 40))
+
+fit_A = parameters[0]
+fit_B = parameters[1]
+fit_C = parameters[2]
+print(fit_A)
+print(fit_B)
+print(fit_C)
+
+fit_y = Gauss(x, fit_A, fit_B, fit_C)
+plt.plot(x, y, label='data', alpha=1, linewidth=2)
+plt.plot(x, fit_y, '-', label='fit')
+plt.legend()
+
+fig2, ax2 = plt.subplots(dpi=400)
+print(covariance)
+plt.imshow(np.log(np.abs(covariance)))
+plt.colorbar()
