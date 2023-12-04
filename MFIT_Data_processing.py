@@ -210,42 +210,23 @@ np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smoo
 
 
 # %%
-'''Attempting to use gauss-newton fitting through Scipy. Yeah this is not going to work 
-because the gaussian doesnt fit the tail well. Basically this would be doing
-the same thing that MFIT does by fitting the ADE equation'''
+'''1st moment analysis tool for each of the time series on the Rad BTC. Used
+primarily for getting the T0, mean transit time for each of the experiments for 
+use in MFIT, but it can also be used to calculate the mean transit time
+(and hence the PV) by using it to measure the x axis difference between a pre
+core sensor and a post core sensor (m1in-m1out)'''
 
-from scipy.optimize import curve_fit 
+#Because this is to be used with MFIT, we are going to be importing the smoothed
+#data created using either the lowess filter or the median filter. This is becuase
+#these are the data that actually get imported into MFIT for inversion
 
-#import the data
-file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_1C_Pre_06ml.csv"
+
+file = r'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/RadBTC_1C_Pre_6ml_smooth.csv'
+fname = file[-21:-11]
 a = np.loadtxt(file, delimiter=',')
 
-x = a[:,0]
-y = a[:,1]
+t = a[:,0]
+C = a[:,1]
 
-def Gauss(x, A, B, C):
-    y = A * np.exp(-(x-B)**2/(2*C)**2)
-    return y
-
-fig1, ax1 = plt.subplots(dpi = 400)
-plt.plot(x, Gauss(x, .52, 318, 40), label='Original Guess')
-
-
-parameters, covariance = curve_fit(Gauss, x, y, p0=(.2, 318, 40))
-
-fit_A = parameters[0]
-fit_B = parameters[1]
-fit_C = parameters[2]
-print(fit_A)
-print(fit_B)
-print(fit_C)
-
-fit_y = Gauss(x, fit_A, fit_B, fit_C)
-plt.plot(x, y, label='data', alpha=1, linewidth=2)
-plt.plot(x, fit_y, '-', label='fit')
-plt.legend()
-
-fig2, ax2 = plt.subplots(dpi=400)
-print(covariance)
-plt.imshow(np.log(np.abs(covariance)))
-plt.colorbar()
+m1 = np.trapz(C * t,t)/np.trapz(C,t)
+print(f'The mean breakthrough time for {fname} is {m1}')
