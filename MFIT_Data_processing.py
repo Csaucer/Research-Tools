@@ -205,28 +205,84 @@ plt.plot(x,y_s, label='medfilt')
 plt.legend(loc='best')
 export = np.hstack((x.reshape(-1, 1), y_s.reshape(-1, 1)))
 
-fname = 'RadBTC_2C_Pre_009ml_smooth.csv'
+fname = 'RadBTC_1C_Pre_06ml_smooth.csv'
 np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
 
 
 # %%
-'''1st moment analysis tool for each of the time series on the Rad BTC. Used
-primarily for getting the T0, mean transit time for each of the experiments for 
-use in MFIT, but it can also be used to calculate the mean transit time
-(and hence the PV) by using it to measure the x axis difference between a pre
-core sensor and a post core sensor (m1in-m1out)'''
+'''Calculate and plot residuals for each of the simulations, as well as plot the 
+phi values'''
 
-#Because this is to be used with MFIT, we are going to be importing the smoothed
-#data created using either the lowess filter or the median filter. This is becuase
-#these are the data that actually get imported into MFIT for inversion
+from scipy import signal
+#because the MFIT data only produces an array of 500 points, we need to downsample
+#the observational data in order to get useable values for calculating residuals
+###This may indicate a need to boost the number of values produced by the MFIT inversions!!!!!!!!
+
+flo_rate = 0.09
+xlim = (0,400) #change this to adjust the x lim for the different flow rates
+#get the MFIT model output data (MDMi)
+coreID = '1C_Pre'
+directory = 'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/009mL_min/1C_Pre'
+subfolder = 'MDMi'
+filename = 'output.txt'
+
+path2data = os.path.join(directory, subfolder)
+
+os.chdir(path2data)
+outMDMi = np.loadtxt(filename, skiprows=1, delimiter=';')
+MDMi_x = outMDMi[:,0]
+MDMi_C = outMDMi[:,1]
+phiMDMi = np.loadtxt('Phi(N).txt', skiprows = 1)
+#get the MFIT model output data (SFDM)
+subfolder = 'SFDM'
+filename = 'output.txt'
+
+path2data = os.path.join(directory, subfolder)
+os.chdir(path2data)
+outSFDM = np.loadtxt(filename, skiprows=1, delimiter=';')
+SFDM_x = outSFDM[:,0]
+SFDM_C = outSFDM[:,1]
+phiSFDM = np.loadtxt('Phi(N).txt', skiprows = 1)
+#why on earth is the 2RNE data the same as the MDMi data???
+#get the MFIT model output data (2RNE)
+subfolder = '2RNE'
+filename = 'output.txt'
+
+path2data = os.path.join(directory, subfolder)
+os.chdir(path2data)
+outRNE= np.loadtxt(filename, skiprows=1, delimiter=';')
+RNE_x = outRNE[:,0]
+RNE_C = outRNE[:,1]
+phi2RNE = np.loadtxt('Phi(N).txt', skiprows = 1)
+#get the observational data
+directory = 'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/009mL_min/1C_Pre'
+filename = 'RadBTC_1C_Pre_009ml_smooth.csv.csv'
+
+os.chdir(directory)
+obs = np.loadtxt(filename, delimiter=',', usecols=(0,1))
+obs = signal.resample(obs[:,1], 500) #downsampling the observational data to only 500 points in order to get residuals. this indicates that I
+#probably need to go through and make sure that I have increased the number of points output by MFIT
+#create the residuals array, plot them
+#MDMi
+rMDMi = np.subtract(MDMi_C, obs)
+#SFDM
+rSFDM = np.subtract(SFDM_C, obs)
+#2RNE
+r2RNE = np.subtract(RNE_C, obs)
+
+fig3, ax3 = plt.subplots(figsize=(12,9), dpi = 200)
+plt.plot(MDMi_x, rMDMi, label='MDMi Residual')
+plt.plot(SFDM_x, rSFDM, label='SFDM Residual')
+plt.plot(RNE_x, r2RNE, label='2RNE Residual')
+plt.legend(loc='best')
 
 
-file = r'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/RadBTC_1C_Pre_6ml_smooth.csv'
-fname = file[-21:-11]
-a = np.loadtxt(file, delimiter=',')
 
-t = a[:,0]
-C = a[:,1]
+#calculate the RMSE
+RMSE_MDMi = np.linalg.norm(rMDMi) / np.sqrt(len(rMDMi))
+RMSE_SFDM = np.linalg.norm(rSFDM) / np.sqrt(len(rSFDM))
+RMSE_2RNE = np.linalg.norm(r2RNE) / np.sqrt(len(r2RNE))
+#include this on the Residuals plot
+plt.text(200, .05, f'RMSE_MDMi : {RMSE_MDMi:.4f}\nRMSE_SFDM: {RMSE_SFDM:.4f}\nRMSE_2RNE: {RMSE_2RNE:.4f}',
+         fontsize=12, bbox=dict(facecolor='red', alpha=0.5))
 
-m1 = np.trapz(C * t,t)/np.trapz(C,t)
-print(f'The mean breakthrough time for {fname} is {m1}')
