@@ -13,22 +13,21 @@ data and plot it against the observational data"""
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-
 #import the data_process python file and run it to decay correct the data for MFIT import
-os.chdir('G:/My Drive/Core Flooding Project/UW Madison/Rad_BTC')
+os.chdir('G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/MFIT_Datafiles_V2')
 #import the data process module
 import data_process
 
 # %% #decay correct the raw rad data
 #run the decay correction with the data_process module from Chris Zahasky
-filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\10May2023_mg1771781c_PET_rad.csv"
+filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\18May2023_mg1771781c_PET_rad.csv"
 s = data_process.sensors(filename, isotope = 'f18')
 #check the starting experiment times, plot them and establish the x values
 s.experiment_time_extraction(n=3, plot_check='yes')
 #save the experiment starting times (rad 2) for each of the experiments
 exp_start = s.eidx
 
-exp_start[2] = 8370 #the 3rd experiment has super low radioactivity, so the auto detect doesnt work well
+exp_start[2] = 5560 #the 3rd experiment has super low radioactivity, so the auto detect doesnt work well
 #manually establish the 3rd data point here
 exp_start = np.insert(exp_start, 3, len(s.SR3_dc))
 print(exp_start) #check these values to see that they match the plots
@@ -60,12 +59,33 @@ for i in range(len(s.SR3_dc)):
         
     else:
         break
+
+# %%
+fig, (ax1, ax2) = plt.subplots(2, figsize=(8, 6), sharex=True, gridspec_kw={'hspace': 0.5})
+
+ax1.plot(s.minutes, s.SP1_raw)
+ax1.set_title('Pressure data SP.1')
+ax1.set_xlabel('Time [min]')
+ax1.set_ylabel('Differential pressure [bars]')
+
+ax2.plot(s.minutes, s.SP2_raw)
+ax2.set_title('Pressure data SP.2')
+ax2.set_xlabel('Time [min]')
+ax2.set_ylabel('Differential pressure [bars]')
+
+plt.show()
 # %%
 #test the above to see what the .csv data looks like
 import pandas as pd
 y = pd.read_csv('C1_pre_exp1.csv')
-x = np.linspace(0, len(y)-1, len(y))
+y = np.array(y.iloc[:,1])
+x = np.arange(0, len(y))
 plt.plot(x,y)
+plt.xlim(0,100)
+
+#attempting to do a baseline subtraction to fix the data
+baseline = np.mean(y[0:15])
+y_fix = y - baseline
 #%%
 #integrate under the curve to get the total tracer mass to input in MFIT
 mass = np.trapz(y.iloc[:, 1])
@@ -82,6 +102,7 @@ mass = np.trapz(y.iloc[:, 1])
 #plt.xlabel('Time in Seconds')
 #plt.ylabel('Radioconcentration [mCi/mL]')
 
+'''BELOW IS ALL INFORMATION THAT IS PERTINANT TO AN ATTEMPT TO SMOOTH THE DATA'''
 #%%
 #deal with the bubble issue in the data, working at the individual curve scale
 from scipy.interpolate import splrep, BSpline
