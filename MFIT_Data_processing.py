@@ -20,7 +20,7 @@ import data_process
 
 # %% #decay correct the raw rad data
 #run the decay correction with the data_process module from Chris Zahasky
-filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\18May2023_mg1771781c_PET_rad.csv"
+filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\10May2023_mg1771781c_PET_rad.csv"
 s = data_process.sensors(filename, isotope = 'f18')
 #check the starting experiment times, plot them and establish the x values
 s.experiment_time_extraction(n=3, plot_check='yes')
@@ -81,14 +81,14 @@ y = pd.read_csv('C1_pre_exp1.csv')
 y = np.array(y.iloc[:,1])
 x = np.arange(0, len(y))
 plt.plot(x,y)
-plt.xlim(0,100)
-
-#attempting to do a baseline subtraction to fix the data
-baseline = np.mean(y[0:15])
-y_fix = y - baseline
+# %%
+rad2 = s.SR2_dc[2000:3000]
+x = np.arange(0, len(rad2))
+plt.plot(x,rad2)
+np.trapz(rad2[200:550])
 #%%
 #integrate under the curve to get the total tracer mass to input in MFIT
-mass = np.trapz(y.iloc[:, 1])
+mass = np.trapz(y[:100])
 # %%
 #MFIT doesn't work with data values that are negative or 0, setting the lower limit
 #of the data to 0.0000001
