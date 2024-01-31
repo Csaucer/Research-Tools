@@ -12,6 +12,7 @@ data and plot it against the observational data"""
 #import the necessary package dependencies
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas as pd
 import os
 #import the data_process python file and run it to decay correct the data for MFIT import
 os.chdir('G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/MFIT_Datafiles_V2')
@@ -61,6 +62,7 @@ for i in range(len(s.SR3_dc)):
         break
 
 # %%
+#pressure plotting
 fig, (ax1, ax2) = plt.subplots(2, figsize=(8, 6), sharex=True, gridspec_kw={'hspace': 0.5})
 
 ax1.plot(s.minutes, s.SP1_raw)
@@ -75,35 +77,114 @@ ax2.set_ylabel('Differential pressure [bars]')
 
 plt.show()
 # %%
-#test the above to see what the .csv data looks like
-import pandas as pd
+#Get the .csv data that is to be brought into MFIT and use the below algorithm to establish the T0 (mean transit time) parameter  
+#6mL/min calculations of T0, injected Mass
+flo_rate = 6
 y = pd.read_csv('C1_pre_exp1.csv')
 y = np.array(y.iloc[:,1])
-x = np.arange(0, len(y))
-plt.plot(x,y)
+y_trimmed = y[18:310]
+x = np.arange(0, len(y_trimmed))
+plt.plot(x,y_trimmed)
+#get the mean transit time
+total_mass = np.trapz(y_trimmed) / (60/flo_rate)
+for i in range(len(y_trimmed)-1):
+    i = i + 1
+    area = np.trapz(y_trimmed[0:i])
+    mass = area/ (60/flo_rate)
+    percent = mass/total_mass * 100
+    if percent >= 50:
+        print(f'The average transit time occurs at i= {i-1}')
+        break
+#create a new array to be saved for MFIT that includes only the trimmed data ranges
+ones = np.ones(np.shape(y_trimmed))
+arr = np.column_stack((x, y_trimmed))
+arr = np.column_stack((arr, ones))
+np.savetxt('C1_pre_exp1_trim.csv', arr, delimiter=',')
+    
 # %%
-rad2 = s.SR2_dc[2000:3000]
+#using rad2 to get the injection mass for each of the curves
+rad2 = s.SR2_dc[3700:3800]
 x = np.arange(0, len(rad2))
 plt.plot(x,rad2)
-np.trapz(rad2[200:550])
-#%%
-#integrate under the curve to get the total tracer mass to input in MFIT
-mass = np.trapz(y[:100])
-# %%
-#MFIT doesn't work with data values that are negative or 0, setting the lower limit
-#of the data to 0.0000001
-#for i in range(len(data)):
-#    if data[i,1] <=  0.0000001:
-#        data[i,1] =  0.0000001
-#plot a test plot of the raw observational data
-#fig =plt.subplot()
-#plt.plot(data[:,0], data[:,1])
-#plt.title('Timeseries plot of Rad BTC data')
-#plt.xlabel('Time in Seconds')
-#plt.ylabel('Radioconcentration [mCi/mL]')
+#np.trapz(rad2)
 
+#divide this into 4 regions:
+#Region1: Before and during injection @6mL/min
+flo_rate = 6
+fig, ax = plt.subplots()
+r1 = s.SR2_dc[0:3900]
+x = np.arange(0, len(r1))
+plt.plot(x, r1)
+plt.title('RadBTC before, during 6mL/min')
+ax.set_ylabel('Radioconcentration [mCi/mL]')
+ax.set_xlabel('time [sec]')
+
+#structure to find the starting and ending boundaries for the curve based on a smoothed curve and peak finding
+smoothed_y = np.convolve(r1, np.ones(10)/10, mode='same')
+
+# Find the peak using a simple threshold (this works fairly well on the 6mL/min data...lets see how it does for other parts of the data)
+threshold = 0.01 * max(smoothed_y)
+peak_indices = np.where(smoothed_y > threshold)[0]
+
+# Determine left and right bounds of the peak
+left_bound = peak_indices[0]
+right_bound = peak_indices[-1]
+
+print("r1 Left bound:", x[left_bound])
+print("r1 Right bound:", x[right_bound])
+masstime = np.trapz(r1[left_bound:right_bound])
+mass = masstime/(60/flo_rate)
+print(f'the approximated injected mass is {mass} mCi')
+
+# %%
+#Region2: After the 6mL/min injection pulse, through the 0.6mL/min injection pulse
+flo_rate = 0.6
+fig, ax = plt.subplots()
+r2 = s.SR2_dc[3900:7000]
+x = np.arange(0, len(r2))
+plt.plot(x, r2)
+plt.title('RadBTC before, during 0.6mL/min')
+ax.set_ylabel('Radioconcentration [mCi/mL]')
+ax.set_xlabel('time [sec]')
+smoothed_y = np.convolve(r2, np.ones(10)/10, mode='same')
+
+# Find the peak using a simple threshold 
+threshold = 0.005 * max(smoothed_y)
+peak_indices = np.where(smoothed_y > threshold)[0]
+
+# Determine left and right bounds of the peak
+left_bound = peak_indices[0]
+right_bound = peak_indices[-1]
+
+print("r2 Left bound:", x[left_bound])
+print("r2 Right bound:", x[right_bound])
+
+#Region 3: After the 0.6mL/min injection to the end
+flo_rate = 0.09
+fig, ax = plt.subplots()
+r3 = s.SR2_dc[7000:]
+x = np.arange(0, len(r3))
+plt.plot(x, r3)
+plt.title('RadBTC before, during 0.09mL/min')
+ax.set_ylabel('Radioconcentration [mCi/mL]')
+ax.set_xlabel('time [sec]')
+smoothed_y = np.convolve(r3, np.ones(10)/10, mode='same')
+
+# Find the peak using a simple threshold 
+threshold = 0.005 * max(smoothed_y)
+peak_indices = np.where(smoothed_y > threshold)[0]
+
+# Determine left and right bounds of the peak
+left_bound = peak_indices[0]
+right_bound = peak_indices[-1]
+
+print("r3 Left bound:", x[left_bound])
+print("r3 Right bound:", x[right_bound])
+masstime = np.trapz(r3[left_bound:right_bound])
+mass = masstime/(60/flo_rate)
+print(f'the approximated injected mass is {mass} mCi')
+# %%
 '''BELOW IS ALL INFORMATION THAT IS PERTINANT TO AN ATTEMPT TO SMOOTH THE DATA'''
-#%%
 #deal with the bubble issue in the data, working at the individual curve scale
 from scipy.interpolate import splrep, BSpline
 #import the data and plot it in its initial form with bubbles present
