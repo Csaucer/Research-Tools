@@ -15,23 +15,88 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import os
 #import the data_process python file and run it to decay correct the data for MFIT import
-os.chdir('G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/MFIT_Datafiles_V2')
+os.chdir('G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/MFIT_Datafiles_V3')
 #import the data process module
 import data_process
 
 # %% #decay correct the raw rad data
 #run the decay correction with the data_process module from Chris Zahasky
-filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\10May2023_mg1771781c_PET_rad.csv"
+filename = r"G:\My Drive\Core Flooding Project\UW Madison\Rad_BTC\Rad_data\19May2023_mg1771782c_PET_rad.csv"
 s = data_process.sensors(filename, isotope = 'f18')
 #check the starting experiment times, plot them and establish the x values
-s.experiment_time_extraction(n=3, plot_check='yes')
+s.experiment_time_extraction(n=2, plot_check='yes')
 #save the experiment starting times (rad 2) for each of the experiments
 exp_start = s.eidx
 
-exp_start[2] = 5560 #the 3rd experiment has super low radioactivity, so the auto detect doesnt work well
+#exp_start[2] = 9650 #the 3rd experiment has super low radioactivity, so the auto detect doesnt work well
+exp_start = np.append(exp_start, 9500)
 #manually establish the 3rd data point here
 exp_start = np.insert(exp_start, 3, len(s.SR3_dc))
 print(exp_start) #check these values to see that they match the plots
+# %%
+#get an approximate gaussian fit for the SR2 input data curve
+# for the 0.09 and the 6 mL/min 
+from scipy.optimize import curve_fit
+
+def gaussian(x, A, mu, sigma):
+    return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
+
+#import the data 
+data = s.SR2_dc[3070:3100]
+
+x=np.arange(0,len(data), 1)
+plt.plot(x, data)
+
+initial_guess = [1.0, 0.0, 1.0]  # Initial guess for the parameters
+params, cov = curve_fit(gaussian, x, data, p0=initial_guess)
+
+# Extract the fitted parameters
+A_fit, mu_fit, sigma_fit = params
+sigma_fit = abs(sigma_fit)
+
+plt.scatter(x, data, label='Data')
+plt.plot(x, gaussian(x, A_fit, mu_fit, sigma_fit), color='red', label='Fitted Gaussian')
+plt.legend()
+plt.xlabel('X [sec.]')
+plt.ylabel('Y[rad concentration]')
+plt.title('Fitting data to a Gaussian curve')
+plt.show()
+
+print("Fitted parameters SR2 6mL/min:")
+print("Amplitude (A):", A_fit)
+print("Mean (mu):", mu_fit)
+print("Standard Deviation (sigma):", sigma_fit)
+
+# 0.09 mL/min
+#because different injected concentrations were used (2.35mCi/mL vs 1.4224 mCi/mL) we need to use the ratio of m0 injected
+#to normalize the curves (normalizing 0.09mL/min to 6 mL/min injected conc.)
+m0_ratio = 1.4224/2.35 #injected conc. for 6 mL/min / inj. conc. for 0.09 mL/min
+data= s.SR2_dc[8000:9500]
+data = data * m0_ratio
+x=np.arange(0,len(data), 1)
+
+plt.plot(x, data)
+
+initial_guess = [1.0, 0.0, 1.0]  # Initial guess for the parameters
+params, cov = curve_fit(gaussian, x, data, p0=initial_guess)
+
+# Extract the fitted parameters
+A_fit, mu_fit, sigma_fit = params
+sigma_fit = abs(sigma_fit)
+
+plt.scatter(x, data, label='Data')
+plt.plot(x, gaussian(x, A_fit, mu_fit, sigma_fit), color='red', label='Fitted Gaussian')
+plt.legend()
+plt.xlabel('X [sec.]')
+plt.ylabel('Y[rad concentration]')
+plt.title('Fitting data to a Gaussian curve')
+plt.show()
+
+print("Fitted parameters SR2 0.09mL/min:")
+print("Amplitude (A):", A_fit)
+print("Mean (mu):", mu_fit)
+print("Standard Deviation (sigma):", sigma_fit)
+
 # %%
 #plot the data from the 3rd radioactivity sensor to see the total SR3 data collected
 x = np.linspace(0, len(s.SR3_dc)-1,num=len(s.SR3_dc))
@@ -41,7 +106,7 @@ plt.plot(x, s.SR3_dc)
 #set the number of experiments
 n=3
 #name the core and the before/after indicator
-ident = 'C1_pre'
+ident = 'C2_post'
 #run a loop to extract the appropriate data
 for i in range(len(s.SR3_dc)):
     if i <= 2:
@@ -79,10 +144,12 @@ plt.show()
 # %%
 #Get the .csv data that is to be brought into MFIT and use the below algorithm to establish the T0 (mean transit time) parameter  
 #6mL/min calculations of T0, injected Mass
-flo_rate = 6
-y = pd.read_csv('C1_pre_exp1.csv')
+flo_rate = 0.09
+y = pd.read_csv('C2_post_exp3.csv')
 y = np.array(y.iloc[:,1])
-y_trimmed = y[18:310]
+
+y_trimmed = y[:3735]
+# %%
 x = np.arange(0, len(y_trimmed))
 plt.plot(x,y_trimmed)
 #get the mean transit time
@@ -91,7 +158,7 @@ for i in range(len(y_trimmed)-1):
     i = i + 1
     area = np.trapz(y_trimmed[0:i])
     mass = area/ (60/flo_rate)
-    percent = mass/total_mass * 100
+    percent = mass/total_mass * 100 
     if percent >= 50:
         print(f'The average transit time occurs at i= {i-1}')
         break
@@ -99,8 +166,29 @@ for i in range(len(y_trimmed)-1):
 ones = np.ones(np.shape(y_trimmed))
 arr = np.column_stack((x, y_trimmed))
 arr = np.column_stack((arr, ones))
-np.savetxt('C1_pre_exp1_trim.csv', arr, delimiter=',')
-    
+#np.savetxt('C2_post_exp3_trim.csv', arr, delimiter=',')
+# %%
+#build linear segments in order to fill into the areas with bubbles that I am fixing by hand on the Pre rxn data
+#section 1 for 1C_pre_0.09mL/min
+x = np.arange(0, 98)
+def y1_func (x):
+    y1 = 0.00605 * x + 0.3482 
+    return y1
+y1 = y1_func(x)
+print(y1)
+
+x = np.arange(0, 390)
+def y2_func(x):
+    y2 = -0.00032 * x + 0.2913
+    return y2
+y2 = y2_func(x)
+print(y2)
+x = np.arange(0, 170)
+def y3_func(x):
+    y3 = -0.00028 * x + 0.1038
+    return y3
+y3 = y3_func(x)
+print(y3)
 # %%
 #using rad2 to get the injection mass for each of the curves
 rad2 = s.SR2_dc[3700:3800]
@@ -213,7 +301,7 @@ b = np.column_stack((np.arange(len(new)),new, np.ones(len(new))))
 
 #check that this worked
 #save this as a csv file
-np.savetxt('C2_pre_exp3_fit.csv', b, delimiter=',')
+#np.savetxt('C2_pre_exp3_fit.csv', b, delimiter=',')
 
 # %%
 
@@ -292,7 +380,7 @@ any undue bias through a curve fitting algorithm'''
 
 from scipy.signal import medfilt
 # prepare data
-file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_2C_pre_009ml.csv"
+file = r"G:\My Drive\Core Flooding Project\MFIT_Rad_BTC\Normalized_Data\RadBTC_1C_pre_009ml.csv"
 a = np.loadtxt(file, delimiter=',')
 
 
@@ -308,7 +396,7 @@ plt.legend(loc='best')
 export = np.hstack((x.reshape(-1, 1), y_s.reshape(-1, 1)))
 
 fname = 'RadBTC_1C_Pre_06ml_smooth.csv'
-np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
+#np.savetxt(f'G:/My Drive/Core Flooding Project/MFIT_Rad_BTC/Normalized_Data/smooth/{fname}.csv', export, delimiter=',')
 
 
 # %%

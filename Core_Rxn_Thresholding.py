@@ -98,7 +98,13 @@ for pic in range(len(hlst)):
     plt.axis('off')  # Optional: Turn off axis ticks and labels
     plt.savefig('thresh_crop' + hlst[pic][0]+'.jpg')
     plt.show()
-
+# %%
+'''The code section above uses yellow values on the cores in order to establish 
+and outline the regions that have been altered. I would like to try again using
+a thresholding algorithm that uses a greyscale as I worry that the yellow 
+method may in fact be too subjective? Update. greyscaling is really hard because
+I am trying to select for a certain color of light'''
+#now attempting using adaptive thresholding based on skimage instead of global thresholding using PILLOW alone
 # %%
 #for each of the images that have been cropped,
 #calculate the % of the surface that shows mineral alteration (by color)
