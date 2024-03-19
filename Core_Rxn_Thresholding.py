@@ -15,129 +15,98 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-import imageio.v3 as iio
 import skimage.color
 import skimage.filters
 from PIL import Image
-from skimage.measure import label, regionprops
-
+import cv2 as cv
 # %%
-#Change the directory to the directory with the images
+# Change the directory to the directory with the images
 path2data = "G:/.shortcut-targets-by-id/1dgvo5l64vNS4MWXXBf-luf9_WsUtbMnL/MN Carbonate Kang Collab/Core photos post experiment/Core Post Experiments/Thresholding_Images"
-
 os.chdir(path2data)
 
-#loop thru to put the image files into a python list
+# Loop through to put the image files into a Python list
 jpg_files = glob.glob(os.path.join(path2data, '*.jpg'))
-im_list = [] #list of each of the jpg images to be thresholded
+imgs = []  # List to store tuples of (filename, image)
 
 for jpg in jpg_files:
-    img = Image.open(jpg)
-    im_list.append(img)
-# get the names of each of the files in order and associate 
-# them with the images in the im_list list
-fname_lst = []
-for i in range(len(jpg_files)):
-    file = jpg_files[i]
-    w_ext = file.split('\\')[-1]
-    word = w_ext.split('.')[0]
-    fname_lst.append(word)
-    
-# merge these two lists together
-imgs = list(zip(fname_lst, im_list))
+    # Open the image file and convert it to RGB format
+    with Image.open(jpg) as img:
+        img_rgb = img.convert('RGB')
+        # Get the filename without extension
+        fname = os.path.splitext(os.path.basename(jpg))[0]
+        # Append filename and RGB image to the list
+        imgs.append((fname, img_rgb))
 # %%
 #creating a greyscale image does not work well at all. It seems that, under all lighting conditions, the yellows/whites just do not show up well in the greyscale.
 #hence, the greyscale has been replaced by an algorithm to recognize and plot the altered areas based on their yellowish color
 
-#algorithm to create yellow color thresholds of the high light images only, save these plots as images
-hlst = []
-for f in range(len(imgs)):
-    pic_name = imgs[f][0]
-    if pic_name[3:7] == 'high':
-        hlst.append((imgs[f][0],imgs[f][1]))
-
-#crop the background out of each of the images before they are passed to 
-#have their yellow regions isolated
-
-
-#isolate the yellow alteration areas as shown on the surface of the rocks
-for pic in range(len(hlst)):
-    impath = os.path.join(path2data, hlst[pic][0]+'.jpg')
-    image = iio.imread(impath)
-    
-   #crop the background out of each of the images before they are passed to 
-   #have their yellow regions isolated 
-    gray_image = skimage.color.rgb2gray(image)
-    
-    #threshold the grayscale image in order to obtain a binary mask
-    
-    t = 0.45 #adjust this threshold value to suit the coloring of your specific greyscale
-    
-    bin_mask = gray_image > t
-    label_image = label(bin_mask)
-    
-    props = regionprops(label_image)
-    largest_region = max(props, key = lambda r: r.area)
-    
-    #extract te bounding box coords of the largest regions
-    y_min, x_min, y_max, x_max = largest_region.bbox
-    
-    cropped_image = image[y_min:y_max, x_min:x_max]
-    
-    #highlight the yellow areas expressing alteration within the image itself
-    hsv_image = skimage.color.rgb2hsv(cropped_image)
-    lower_yellow = np.array([0.05, 0.23, 0.5])   # Hue, Saturation, Value
-    upper_yellow = np.array([0.23, 1.0, 1.0]) 
-    
-    mask = np.logical_and(np.all(hsv_image >= lower_yellow, axis=-1), np.all(hsv_image <= upper_yellow, axis=-1))
-    
-    yellow_off_yellow_regions = np.zeros_like(cropped_image)
-    yellow_off_yellow_regions[mask] = cropped_image[mask] 
-
-    plt.imshow(yellow_off_yellow_regions)
-    plt.axis('off')  # Optional: Turn off axis ticks and labels
-    plt.savefig('thresh_crop' + hlst[pic][0]+'.jpg')
-    plt.show()
+#create greyscale images of the top half of core 1C and core 2C
+for i in range(len(imgs)):
+    word1 = 'top' #only include the top halves of the images to avoid shadow effects
+    word2 = 'thresh' #exclude the arleady thresholded images
+    if word1 in imgs[i][0] and word2 not in imgs[i][0]:
+        name = imgs[i][0] #collect the filenames of each image
+        image = imgs[i][1] # get the image and assign it to a variable
+        grey_image = skimage.color.rgb2gray(image)
+        #thresh = skimage.filters.threshold_otsu(grey_image) #threshold the greyscale image
+        thresh = 0.25
+        binary = grey_image  > thresh #create a binary image map
+        
+        fig, axes = plt.subplots(ncols=3, figsize=(8, 2.5))
+        ax = axes.ravel()
+        ax[0] = plt.subplot(1, 3, 1)
+        ax[1] = plt.subplot(1, 3, 2)
+        ax[2] = plt.subplot(1, 3, 3, sharex=ax[0], sharey=ax[0])
+       
+        ax[0].imshow(image, cmap=plt.cm.gray)
+        ax[0].set_title('Original')
+        ax[0].axis('off')
+       
+        ax[1].hist(grey_image.ravel(), bins=256)
+        ax[1].set_title('Histogram')
+        ax[1].axvline(thresh, color='r')
+       
+        ax[2].imshow(binary, cmap=plt.cm.gray)
+        ax[2].set_title('Thresholded')
+        ax[2].axis('off')
+       
+        plt.show()
 # %%
-'''The code section above uses yellow values on the cores in order to establish 
-and outline the regions that have been altered. I would like to try again using
-a thresholding algorithm that uses a greyscale as I worry that the yellow 
-method may in fact be too subjective? Update. greyscaling is really hard because
-I am trying to select for a certain color of light'''
-#now attempting using adaptive thresholding based on skimage instead of global thresholding using PILLOW alone
-# %%
-#for each of the images that have been cropped,
-#calculate the % of the surface that shows mineral alteration (by color)
-ylst = []
-for f in range(len(imgs)):
-    pic_name = imgs[f][0]
-    if pic_name[0:6] == 'thresh':
-        ylst.append((imgs[f][0]))
+#grey value simple thresholding doesn't work very well. Attempting with hsv
 
-per_altered = []
-for i in range(len(ylst)):
-    impath = os.path.join(path2data, ylst[i]+'.jpg')
-    image = iio.imread(impath)
-    #get the height, width, # of channels for the image being considered
-    height, width, chan = image.shape
+#create hsv images of the top half of core 1C and core 2C
+for i in range(len(imgs)):
+    word1 = 'top' #only include the top halves of the images to avoid shadow effects
+    word2 = 'thresh' #exclude the arleady thresholded images
+    word3 = 'trim'
+    word4 = 'high' #the high light versions of the photos seem to be more accurate
+    #if word1 in imgs[i][0] and word2 not in imgs[i][0]:
+    if word3 in imgs[i][0] and word4 in imgs[i][0]:
+        name = imgs[i][0] #collect the filenames of each image
+        image = imgs[i][1] # get the image and assign it to a variable'
+        print(name)
+        cv_im = np.array(image)
+        cv_im = cv_im[:, :, ::-1].copy()
+        # Convert the image to HSV color space
+        hsv_image = cv.cvtColor(cv_im, cv.COLOR_BGR2HSV)
+        
+        lower_yellow = np.array([15, 65, 75])
+        upper_yellow = np.array([35, 255, 255])
+        #Create a mask based on the specified range of colors (yellow)
+        mask = cv.inRange(hsv_image, lower_yellow, upper_yellow)
+       
+        # Apply the mask to the original image
+        result = cv.bitwise_and(cv_im, cv_im, mask=mask)
+       
+        # Convert the result back to PIL Image if needed
+        result_image = Image.fromarray(result[:, :, ::-1])  # Convert BGR to RGB
+        plt.imshow(result_image)
+        altered_pixels = np.sum(mask != 0)  # Count the number of altered pixels
+        total_pixels = mask.size  # Total number of pixels in the image
 
-    #calculate the total number of pixes by multiplying width * height
+        # Calculate the percentage of altered pixels
+        percentage_altered = (altered_pixels / total_pixels) * 100
 
-    total_pixels = width * height
-    
-    #calculate the total number of non-black pixels by using a greyscale
-    grayscale = skimage.color.rgb2gray(image)
-
-    colpix = len(grayscale[grayscale > 0])
-    
-    #calculate the percentage of the image that is non-black pixels (altered region)
-    alt_percent = colpix / total_pixels
-    
-    per_altered.append((ylst[i], alt_percent * 100))
-    
-savefile = os.path.join(path2data, 'Alteration_percent.txt')
-
-with open(savefile, 'w') as file:
-    content = '\n'.join(map(str, per_altered))
-    # Write the content to the file
-    file.write(content)
+        print(f"Percentage of altered pixels: {percentage_altered:.2f}")
+        plt.axis('off')
+        plt.show()
